@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registro de Ventas Diarias</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 800px;
+            margin: 20px auto;
+            background: #fff;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        form {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin: 10px 0 5px;
+            color: #555;
+        }
+        input, select, button {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        button {
+            background-color: #28a745;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        button:hover {
+            background-color: #218838;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #f8f9fa;
+        }
+        .hidden {
+            display: none;
+        }
+        #totalSalesContainer {
+            text-align: right;
+            margin-top: 20px;
+            font-size: 18px;
+            color: #333;
+        }
+        #currentDateTime {
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 18px;
+            color: #333;
+        }
+        @media (max-width: 600px) {
+            .container {
+                padding: 10px;
+            }
+            input, select, button {
+                padding: 8px;
+            }
+            th, td {
+                padding: 8px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Registro de Ventas Diarias</h1>
+        <div id="currentDateTime"></div>
+        <form id="salesForm">
+            <label for="date">Fecha:</label>
+            <input type="date" id="date" name="date">
+
+            <label for="entryMethod">Método de Entrada:</label>
+            <select id="entryMethod" name="entryMethod">
+                <option value="manual">Entrada Manual</option>
+                <option value="barcode">Escanear Código de Barras</option>
+            </select>
+
+            <div id="manualEntry">
+                <label for="product">Producto:</label>
+                <input type="text" id="product" name="product">
+                
+                <label for="quantity">Cantidad:</label>
+                <input type="number" id="quantity" name="quantity" step="1">
+                
+                <label for="price">Precio de Venta (por unidad):</label>
+                <input type="number" id="price" name="price" step="0.01">
+            </div>
+
+            <div id="barcodeEntry" class="hidden">
+                <label for="barcode">Escanear Código de Barras:</label>
+                <input type="text" id="barcode" name="barcode">
+            </div>
+
+            <button type="submit">Agregar Venta</button>
+        </form>
+        
+        <h2>Ventas del Día</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Fecha</th>
+                    <th>Producto</th>
+                    <th>Cantidad</th>
+                    <th>Precio por Unidad</th>
+                    <th>Total</th>
+                </tr>
+            </thead>
+            <tbody id="salesTableBody">
+                <!-- Las ventas se añadirán aquí -->
+            </tbody>
+        </table>
+        
+        <div id="totalSalesContainer">
+            Total del Día: $<span id="totalSales">0.00</span>
+        </div>
+    </div>
+
+    <script>
+        const productDatabase = {
+            '123456789012': { name: 'Producto A', price: 10.00 },
+            '987654321098': { name: 'Producto B', price: 20.00 },
+            // Añade más productos según sea necesario
+        };
+
+        let totalSales = 0;
+
+        function loadSales() {
+            const lastDate = localStorage.getItem('lastDate');
+            const currentDate = new Date().toISOString().split('T')[0];
+
+            if (lastDate !== currentDate) {
+                localStorage.setItem('lastDate', currentDate);
+                localStorage.removeItem('sales');
+            } else {
+                const savedSales = JSON.parse(localStorage.getItem('sales')) || [];
+                totalSales = 0;
+
+                savedSales.forEach(sale => {
+                    addSale(sale.date, sale.product, sale.quantity, sale.price, false);
+                });
+            }
+        }
+
+        document.getElementById('entryMethod').addEventListener('change', function(event) {
+            const method = event.target.value;
+            document.getElementById('manualEntry').classList.toggle('hidden', method === 'barcode');
+            document.getElementById('barcodeEntry').classList.toggle('hidden', method === 'manual');
+        });
+
+        document.getElementById('salesForm').addEventListener('submit', function(event) {
+            event.preventDefault();
+
+            const date = document.getElementById('date').value;
+
+            if (!date) {
+                alert('Por favor, selecciona una fecha.');
+                return;
+            }
+
+            const method = document.getElementById('entryMethod').value;
+
+            if (method === 'manual') {
+                const product = document.getElementById('product').value.trim();
+                const quantity = parseInt(document.getElementById('quantity').value);
+                const price = parseFloat(document.getElementById('price').value);
+
+                if (product && !isNaN(quantity) && !isNaN(price)) {
+                    addSale(date, product, quantity, price, true);
+                } else {
+                    alert('Por favor, completa todos los campos.');
+                }
+            } else if (method === 'barcode') {
+                const barcode = document.getElementById('barcode').value.trim();
+
+                if (productDatabase[barcode]) {
+                    const product = productDatabase[barcode].name;
+                    const price = productDatabase[barcode].price;
+                    const quantity = 1;
+
+                    addSale(date, product, quantity, price, true);
+
+                    document.getElementById('barcode').value = '';
+                    document.getElementById('barcode').focus();
+                } else {
+                    alert('Producto no encontrado en la base de datos.');
+                    document.getElementById('barcode').value = '';
+                    document.getElementById('barcode').focus();
+                }
+            }
+
+            const selectedDate = document.getElementById('date').value;
+
+            document.getElementById('salesForm').reset();
+
+            document.getElementById('date').value = selectedDate;
+        });
+
+        function addSale(date, product, quantity, price, save = true) {
+            const total = quantity * price;
+            totalSales += total;
+
+            const tableBody = document.getElementById('salesTableBody');
+            const newRow = document.createElement('tr');
+            newRow.innerHTML = `
+                <td>${date}</td>
+                <td>${product}</td>
+                <td>${quantity}</td>
+                <td>${price.toFixed(2)}</td>
+                <td>${total.toFixed(2)}</td>
+            `;
+            tableBody.appendChild(newRow);
+
+            document.getElementById('totalSales').innerText = totalSales.toFixed(2);
+
+            if (save) {
+                saveSale({ date, product, quantity, price });
+            }
+        }
+
+        function saveSale(sale) {
+            const sales = JSON.parse(localStorage.getItem('sales')) || [];
+            sales.push(sale);
+            localStorage.setItem('sales', JSON.stringify(sales));
+        }
+
+        function updateDateTime() {
+            const now = new Date();
+            const dateString = now.toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' });
+            const timeString = now.toLocaleTimeString('es-ES');
+            document.getElementById('currentDateTime').innerText = `Fecha: ${dateString} - Hora: ${timeString}`;
+
+            const dateField = document.getElementById('date');
+            dateField.value = now.toISOString().split('T')[0];
+        }
+
+        setInterval(updateDateTime, 1000);
+        updateDateTime();
+        loadSales();
+    </script>
+</body>
+</html>
